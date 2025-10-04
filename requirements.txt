@@ -1,0 +1,18 @@
+# Core FastAPI and server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# ML and model dependencies
+torch>=2.0.0
+transformers==4.35.0
+accelerate==0.24.1
+
+# Mistral-specific dependencies (install separately if needed)
+# mistral-common
+# mistral-inference
+
+# Production utilities
+python-multipart==0.0.6
