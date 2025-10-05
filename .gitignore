@@ -56,7 +56,7 @@ logs/
 *.safetensors
 *.model
 checkpoints/
-models/
+
 
 # Temporary files
 *.tmp
