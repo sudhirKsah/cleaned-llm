@@ -16,3 +16,6 @@ accelerate==0.24.1
 
 # Production utilities
 python-multipart==0.0.6
+
+# Security
+PyJWT==2.8.0

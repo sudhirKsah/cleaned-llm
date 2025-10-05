@@ -1,16 +1,18 @@
 """
-OpenAI-compatible chat completions endpoint with streaming support.
+OpenAI-compatible chat completions endpoint with comprehensive security.
 """
 import json
 import time
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.services.mistral_service import MistralService
 from app.core.dependencies import get_mistral_service
+from app.core.auth import get_current_user
+from app.core.security import security_manager
 from app.models.streaming_models import (
     ChatMessage, 
     ChatRequest, 
@@ -29,27 +31,82 @@ router = APIRouter()
 @router.post("/chat/completions")
 async def chat_completions(
     request: ChatRequest,
-    mistral_service: MistralService = Depends(get_mistral_service)
+    http_request: Request,
+    mistral_service: MistralService = Depends(get_mistral_service),
+    current_user: dict = Depends(get_current_user)
 ):
-    """OpenAI-compatible chat completions endpoint with streaming support."""
+    """Secure OpenAI-compatible chat completions endpoint with streaming support."""
     try:
-        if request.stream:
-            return await _stream_chat_completions(request, mistral_service)
+        # Get client IP
+        client_ip = http_request.client.host if http_request.client else "unknown"
+        
+        # Validate request security
+        is_valid, validation_msg, validated_messages = security_manager.validate_request(
+            request.messages, client_ip
+        )
+        
+        if not is_valid:
+            security_manager.logger.log_security_event(
+                "REQUEST_REJECTED", client_ip, validation_msg
+            )
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": validation_msg,
+                        "type": "validation_error",
+                        "code": "security_violation"
+                    }
+                }
+            )
+        
+        # Create secure request with validated messages
+        secure_request = ChatRequest(
+            model=request.model,
+            messages=validated_messages,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            top_p=request.top_p,
+            stream=request.stream,
+            stop=request.stop
+        )
+        
+        # Log successful request
+        security_manager.add_audit_entry(
+            client_ip,
+            "CHAT_COMPLETION_REQUEST",
+            {
+                "user_id": current_user.get("user_id"),
+                "message_count": len(validated_messages),
+                "stream": request.stream,
+                "model": request.model
+            }
+        )
+        
+        # Process request
+        if secure_request.stream:
+            return await _stream_chat_completions(secure_request, mistral_service, client_ip)
         else:
-            return await _non_stream_chat_completions(request, mistral_service)
+            return await _non_stream_chat_completions(secure_request, mistral_service, client_ip)
+            
+    except HTTPException:
+        raise
     except Exception as e:
+        security_manager.logger.log_security_event(
+            "INTERNAL_ERROR", client_ip, f"Unexpected error: {str(e)}"
+        )
         raise HTTPException(
             status_code=500,
             detail={
                 "error": {
-                    "message": str(e),
+                    "message": "Internal server error",
                     "type": "api_error",
                     "code": "internal_error"
                 }
             }
         )
 
-async def _stream_chat_completions(request: ChatRequest, mistral_service: MistralService):
+async def _stream_chat_completions(request: ChatRequest, mistral_service: MistralService, client_ip: str):
     """Stream chat completions with token-by-token streaming."""
     
     async def generate() -> AsyncGenerator[str, None]:
@@ -132,7 +189,7 @@ async def _stream_chat_completions(request: ChatRequest, mistral_service: Mistra
         }
     )
 
-async def _non_stream_chat_completions(request: ChatRequest, mistral_service: MistralService):
+async def _non_stream_chat_completions(request: ChatRequest, mistral_service: MistralService, client_ip: str):
     """Non-streaming chat completions."""
     completion_id = f"chatcmpl-{uuid.uuid4().hex}"
     created_time = int(time.time())

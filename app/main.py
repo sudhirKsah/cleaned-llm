@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.api.endpoints import streaming
 from app.services.mistral_service import MistralService
 from app.core.dependencies import set_mistral_service
+from app.core.security import security_manager
 from app.config.settings import settings
 
 
@@ -24,10 +25,15 @@ async def lifespan(app: FastAPI):
     print(f"Model loading completed. Type: {mistral_service.model_type}, Loaded: {mistral_service.loaded}")
     set_mistral_service(mistral_service)
     
+    # Initialize security system
+    print("Security framework initialized")
+    security_manager.logger.log_security_event("SERVER_STARTUP", "system", "MentaY API server started with security enabled")
+    
     yield
     
     # Shutdown
     print("Shutting down server...")
+    security_manager.logger.log_security_event("SERVER_SHUTDOWN", "system", "MentaY API server shutting down")
 
 
 app = FastAPI(
