@@ -100,8 +100,8 @@ def test_streaming_chat():
                             data = json.loads(data_str)
                             if 'choices' in data and len(data['choices']) > 0:
                                 delta = data['choices'][0].get('delta', {})
-                                if 'content' in delta:
-                                    token = delta['content']
+                                if 'content' in delta and delta['content'] is not None:
+                                    token = str(delta['content'])
                                     content += token
                                     print(token, end='', flush=True)
                         except json.JSONDecodeError:

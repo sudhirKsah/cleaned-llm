@@ -77,6 +77,10 @@ async def _stream_chat_completions(request: ChatRequest, mistral_service: Mistra
                 max_tokens=request.max_tokens,
                 temperature=request.temperature
             ):
+                # Skip None or empty tokens
+                if token is None or token == "":
+                    continue
+                    
                 stream_response = StreamResponse(
                     id=completion_id,
                     created=created_time,
@@ -84,7 +88,7 @@ async def _stream_chat_completions(request: ChatRequest, mistral_service: Mistra
                     choices=[
                         StreamResponseChoice(
                             index=0,
-                            delta=StreamDelta(content=token)
+                            delta=StreamDelta(content=str(token))
                         )
                     ]
                 )
@@ -140,7 +144,8 @@ async def _non_stream_chat_completions(request: ChatRequest, mistral_service: Mi
         max_tokens=request.max_tokens,
         temperature=request.temperature
     ):
-        full_response += token
+        if token is not None:
+            full_response += str(token)
     
     # Calculate approximate token counts (simple word-based estimation)
     prompt_tokens = sum(len(msg.content.split()) for msg in request.messages)
